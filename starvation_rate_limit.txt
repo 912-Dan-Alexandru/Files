@@ -1,0 +1,60 @@
+1. Monitoring using Flower
+
+STARVATION
+
+ 1. separate queue for each vendor + worker for each queue
+ 	- possible CON: Some workers might remain idle if there are no tasks in their queue, leading to inefficient use of resources
+		- this issue can be solved by using autoscaling workers, fallback queues(a worker to listen to multiple queues) or dinamically assigning tasks to queues based on the load
+		
+ 2. task prioritization/fair scheduling enhanced with a weighted round robing + aging
+ 	- if we use task prioritization, smaller priority tasks may not get a chance to be processed so we use weighted round robin ot ensure smaller priority tasks get a chance as well and aging to 			ensure that tasks that have been waiting for a longer time will increase their priority gradually  
+ 	
+ 3. rate limiting
+	- we can limit the rate at which particular tasks can be processed so we address both starvation and the rate limiting issue for meraki
+	
+4. control the number of prefecthed tasks + late acknowledgement
+	- celery workers will prefetch multiple tasks from the queue but if we have a long running tasks it will delay significantly the other prefetched tasks
+
+RATE LIMITING
+
+ 1. rate limiting
+ 	- limit the rate at which particular tasks can be processed
+ 	
+ 2. aiometer for granular concurency control and throttling
+ 
+ 3. checking the remaining rate limit
+ 	- make use of response headers such as X-Rate-Limit-Remaining + X-Rate-Limit-Reset + Retry-After. if the limit is low, we can sleep a little bit, taking into accoun also the time when the rate 	  limit will reset
+ 	- adjust the rate at which we hit the api dinamically based on this information
+ 	- to take into consideration: if we have multiple workers that hit the meraki api, we could use a distributed rate limiting mechanism
+ 
+ 4. implement an exponential backoff strategy for retrying
+        - we hit the limit once sleep for 1 sec -> 2 sec -> 4 sec etc..
+        - once we start not hitting the limit, after a period of time we can decrease this limit in the same manner
+ 
+ 5. optimizing the calls(so we don't request redundant data and make less calls) if possible
+ 
+ 6. we could monitor the usage of our organization_api_key over a period of time to understand where the problem is
+ 
+ ADDITIONAl IMPROVEMENTS:
+ 	- use -O fair argument for workers for better scheduling(if we don't implement custom logic)
+ 	- as our tasks are mainly I/O, we can consider using gevent/eventlet instead of the default prefork
+		- prefork uses multiple processes while gevent/eventlet make use of green threads, making them much more suitable for I/O operations(they come with poorer fault toleration)
+	- task batching(group multiple smaller tasks into a bigger one)
+
+RESOURCES
+ - https://flower.readthedocs.io/en/latest/
+ - https://www.vintasoftware.com/blog/dealing-resource-consuming-tasks-celery
+ - https://www.vintasoftware.com/blog/celery-wild-tips-and-tricks-run-async-tasks-real-world
+ - https://docs.celeryq.dev/en/latest/userguide/optimizing.html
+ - https://docs.celeryq.dev/en/latest/reference/cli.html
+ - https://lokesh1729.com/posts/scaling-celery-to-handle-workflows-and-multiple-queues/
+ 
+ - https://developer.cisco.com/meraki/api-v1/rate-limit/#rate-limit
+ - https://community.meraki.com/t5/Developers-APIs/API-rate-limiting-in-2023/m-p/209677
+ - https://community.meraki.com/t5/Developers-APIs/How-to-access-Retry-After-header-in-API-response/m-p/68615
+ 
+ 
+ - https://youtu.be/yKD3pcFvGmY?si=U7F_A8Gvc1sV-mh2
+ - https://youtu.be/Bo6UtRhedjE?si=_M84hS5y1EgbNwGH
+ - https://youtu.be/ApUntHaO_P8?si=TzQ_yLKAjTreKUAy
+  
